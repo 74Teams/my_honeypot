@@ -17,3 +17,7 @@ __pycache__/
 # VS Code / IDE
 .vscode/
 .idea/
+
+*.db
+*.db-wal
+*.db-shm
