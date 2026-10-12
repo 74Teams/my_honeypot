@@ -4,6 +4,7 @@ import socket
 import paramiko
 import threading
 from logging.handlers import RotatingFileHandler
+from event_store import log_event 
 
 # constants
 logging_format = logging.Formatter('%(message)s')
@@ -72,6 +73,8 @@ def emulated_shell(channel, client_ip):
         cmd = command.strip().decode(errors='replace')
         command = b''
         creds_logger.info(f'Command "{cmd}" executed by {client_ip}')
+        if cmd:
+            log_event('ssh', 'command', client_ip, command=cmd)
 
         if cmd == 'exit':
             channel.send(b'\r\nlogout\r\n')
@@ -116,6 +119,7 @@ class Server(paramiko.ServerInterface):
     def check_auth_password(self, username, password):
         funnel_logger.info(f"Client IP: {self.client_ip} | Username: {username} | Password: {password}")
         creds_logger.info(f'{self.client_ip}, {username}, {password}')
+        log_event('ssh', 'auth_attempt', self.client_ip, username=username, password=password)
         if self.input_username is not None and self.input_password is not None:
             if username == self.input_username and password == self.input_password:
                 return paramiko.AUTH_SUCCESSFUL

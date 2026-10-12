@@ -1,7 +1,9 @@
 # Libraries
 import logging
+import re  
 from logging.handlers import RotatingFileHandler
 from flask import Flask, render_template, request
+from event_store import log_event 
 
 # Logging Format
 logging_format = logging.Formatter('%(asctime)s %(message)s')
@@ -34,6 +36,11 @@ def web_honeypot(input_username="admin", input_password="password"):
             f'Username: {username}, Password: {password}'
         )
 
+        tag = 'sqli' if re.search(r"('|--|\bOR\b\s+\d|\bUNION\b|\bSELECT\b)",
+                                  username + ' ' + password, re.I) else None
+        log_event('http', 'http_login', ip_address, username=username, password=password,
+                  user_agent=request.headers.get('User-Agent'), attack_tag=tag)
+
         if username == input_username and password == input_password:
             return 'DEEBOODAH!'
         else:
@@ -44,6 +51,4 @@ def web_honeypot(input_username="admin", input_password="password"):
 
 def run_web_honeypot(host="0.0.0.0", port=5000, input_username="admin", input_password="password"):
     app = web_honeypot(input_username, input_password)
-    # debug=False: honeypot phải luôn tắt debug mode, tránh lộ Werkzeug
-    # interactive debugger (cho phép thực thi code từ xa) khi có exception.
     app.run(debug=False, port=port, host=host)

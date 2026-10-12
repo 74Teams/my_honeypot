@@ -29,3 +29,7 @@ Command "ls" executed by 127.0.0.1
 Command "��whoami" executed by 127.0.0.1
 Command "p�wd" executed by 127.0.0.1
 Command "�exit" executed by 127.0.0.1
+127.0.0.1, username, admin1234
+Command "ls" executed by 127.0.0.1
+Command "cat jumpbox1.c�onf" executed by 127.0.0.1
+Command "cd .." executed by 127.0.0.1
