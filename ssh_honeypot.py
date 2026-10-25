@@ -4,27 +4,40 @@ import socket
 import paramiko
 import threading
 from logging.handlers import RotatingFileHandler
-from event_store import log_event 
+from config import settings
+from event_store import log_event
 
 # constants
 logging_format = logging.Formatter('%(message)s')
-SSH_BANNER = "SSH-2.0-OpenSSH_9.6p1 Ubuntu-3ubuntu13"
-PROMPT = b'corporate-jumpbox2$ '
+SSH_BANNER = settings.ssh_banner
+PROMPT = settings.ssh_prompt.encode()
 
-host_key = paramiko.RSAKey(filename='server.key')
-
-# loggers và logging files
+# loggers (file handler được gắn trong setup_loggers() lúc chạy, không phải lúc import)
 funnel_logger = logging.getLogger('funnel_logger')
 funnel_logger.setLevel(logging.INFO)
-funnel_handler = RotatingFileHandler('audits.log', maxBytes=5*1024*1024, backupCount=5, encoding='utf-8')
-funnel_handler.setFormatter(logging_format)
-funnel_logger.addHandler(funnel_handler)
-
 creds_logger = logging.getLogger('Creds_logger')
 creds_logger.setLevel(logging.INFO)
-creds_handler = RotatingFileHandler('cmd_audits.log', maxBytes=5*1024*1024, backupCount=5, encoding='utf-8')
-creds_handler.setFormatter(logging_format)
-creds_logger.addHandler(creds_handler)
+
+
+def setup_loggers():
+    settings.log_dir.mkdir(parents=True, exist_ok=True)
+    for logger, filename in ((funnel_logger, 'audits.log'), (creds_logger, 'cmd_audits.log')):
+        if logger.handlers:
+            continue
+        handler = RotatingFileHandler(settings.log_dir / filename, maxBytes=5*1024*1024,
+                                      backupCount=5, encoding='utf-8')
+        handler.setFormatter(logging_format)
+        logger.addHandler(handler)
+
+
+def load_host_key(path=None):
+    """Đọc host key; nếu chưa có thì tự sinh (mỗi máy một key riêng, không commit)."""
+    path = path or settings.host_key_path
+    if not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        paramiko.RSAKey.generate(2048).write_private_key_file(str(path))
+        print(f"[+] Generated new SSH host key at {path}")
+    return paramiko.RSAKey(filename=str(path))
 
 
 # emulated shell
@@ -147,7 +160,7 @@ class Server(paramiko.ServerInterface):
         return True
 
 
-def client_handle(client, addr, username, password):
+def client_handle(client, addr, username, password, host_key):
     client_ip = addr[0]
     print(f"{client_ip} has connected to the server.")
     transport = None
@@ -169,7 +182,7 @@ def client_handle(client, addr, username, password):
         if not server.event.wait(10):
             return
 
-        standard_banner = "Welcome to Ubuntu 24.04.1 LTS (GNU/Linux 6.8.0-45-generic x86_64)\r\n\r\n"
+        standard_banner = settings.ssh_motd + "\r\n\r\n"
         channel.send(standard_banner.encode())
         emulated_shell(channel, client_ip=client_ip)
 
@@ -186,6 +199,9 @@ def client_handle(client, addr, username, password):
 
 # Provision SSH-based Honeypot
 def honeypot(address, port, username, password):
+    setup_loggers()
+    host_key = load_host_key()
+
     socks = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     socks.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     socks.bind((address, port))
@@ -203,7 +219,7 @@ def honeypot(address, port, username, password):
                 print(error)
                 break
             t = threading.Thread(target=client_handle,
-                                 args=(client, addr, username, password),
+                                 args=(client, addr, username, password, host_key),
                                  daemon=True)
             t.start()
     finally:

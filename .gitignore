@@ -1,9 +1,16 @@
-# SSH host key (tự tạo lại bằng ssh-keygen trên mỗi máy, không commit)
+# Dữ liệu sinh ra khi chạy: DB, log, SSH host key (tự sinh trên mỗi máy, không commit)
+data/
+
+# Bản cũ trước khi dồn vào data/
 server.key
 server.key.pub
-
-# Log files honeypot tự sinh ra khi chạy
 *.log
+*.db
+*.db-wal
+*.db-shm
+
+# Cấu hình riêng từng máy
+.env
 
 # Virtual environment
 .venv/
@@ -13,11 +20,8 @@ env/
 # Python cache
 __pycache__/
 *.pyc
+.pytest_cache/
 
 # VS Code / IDE
 .vscode/
 .idea/
-
-*.db
-*.db-wal
-*.db-shm
